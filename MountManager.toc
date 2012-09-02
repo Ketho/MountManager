@@ -4,7 +4,7 @@
 ## Author: Dragoron
 ## Version: v1.0
 ## SavedVariables: MountManagerDB
-## OptionalDeps: Ace3, LibTourist-3.0, LibBabble-Zone-3.0, LibMounts-1.0
+## OptionalDeps: Ace3, LibBabble-Zone-3.0, LibMounts-1.0
 ## X-Embeds: Ace3
 ## X-Category: Companions
 

@@ -446,23 +446,25 @@ function MountManager:HijackMountFrame()
 end
 
 function MountManager:UpdateMountChecks()
-    for idx, button in ipairs(self.companionButtons) do
-		local parent = button:GetParent()
-        if parent:IsEnabled() == 1 then
-            -- Get information about the currently selected mount
-            local spellID = parent.spellID
-                
-            -- Set the checked state based on the currently saved value
-            local checked = false;
-            for mountType, typeTable in pairs(self.db.char.mounts) do
-                if typeTable[spellID] ~= nil then
-                    checked = typeTable[spellID]
-                end
-            end
+    if self.companionButtons then
+		for idx, button in ipairs(self.companionButtons) do
+			local parent = button:GetParent()
+			if parent:IsEnabled() == 1 then
+				-- Get information about the currently selected mount
+				local spellID = parent.spellID
+					
+				-- Set the checked state based on the currently saved value
+				local checked = false;
+				for mountType, typeTable in pairs(self.db.char.mounts) do
+					if typeTable[spellID] ~= nil then
+						checked = typeTable[spellID]
+					end
+				end
 
-            button:SetChecked(checked)
-        end
-    end
+				button:SetChecked(checked)
+			end
+		end
+	end
 end
 
 function MountManager:MountCheckButton_OnClick(button)
