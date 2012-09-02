@@ -18,8 +18,8 @@ local options = {
         },
         showInChat = {
             type = "toggle",
-            name = L["Enable Chat"],
-            desc = L["Enable Chat Desc"],
+            name = L["Show in Chat"],
+            desc = L["Toggles the display of the mount name in the chat window."],
             get = "GetShowInChat",
             set = "SetShowInChat",
             width = "full",
@@ -27,7 +27,7 @@ local options = {
         alwaysDifferent = {
             type = "toggle",
             name = L["Always Different"],
-            desc = L["Always Different Desc"],
+            desc = L["Always select a different mount than the previous one."],
             get = "GetAlwaysDifferent",
             set = "SetAlwaysDifferent",
             width = "full",
@@ -35,7 +35,7 @@ local options = {
         safeFlying = {
             type = "toggle",
             name = L["Safe Flying"],
-            desc = L["Safe Flying Desc"],
+            desc = L["Toggles the ability to dismount when flying"],
             get = "GetSafeFlying",
             set = "SetSafeFlying",
             width = "full",
@@ -43,15 +43,15 @@ local options = {
         oneClick = {
             type = "toggle",
             name = L["One Click"],
-            desc = L["One Click Desc"],
+            desc = L["One click will dismount you and summon the next available mount."],
             get = "GetOneClick",
             set = "SetOneClick",
             width = "full",
         },
         autoNextMount = {
             type = "toggle",
-            name = L["Auto Next Mount"],
-            desc = L["Auto Next Mount Desc"],
+            name = L["Automatic Next Mount"],
+            desc = L["Automatically determine the next available random mount after summoning the currently selected one."],
             get = "GetAutoNextMount",
             set = "SetAutoNextMount",
             width = "full",
@@ -196,7 +196,7 @@ end
 ------------------------------------------------------------------
 function MountManager:ChatCommand(input)
     if input == "rescan" then
-        self:Print(L["RescanStart"])
+        self:Print(L["Beginning rescan..."])
 
         self.db.char.mounts = {
             ground = {},
@@ -217,7 +217,7 @@ function MountManager:ChatCommand(input)
             self:UPDATE_SHAPESHIFT_FORMS()
         end
 
-        self:Print(L["RescanEnd"])
+        self:Print(L["Rescan complete"])
     else
         InterfaceOptionsFrame_OpenToCategory(self.optionsFrame)
     end
@@ -349,7 +349,7 @@ function MountManager:ScanForNewMounts()
     end
     
     if newMounts > 0 then
-        self:Print(string.format(L["NewMountsFormat"], newMounts))
+        self:Print("|cff20ff20%s|r %s"):format(newMounts, L["new mount(s) found!"])
 		self:UpdateMountChecks()
     end
 end
@@ -385,7 +385,7 @@ function MountManager:ScanForNewPets()
         end
     end
     if newPets > 0 then
-        self:Print(string.format(L["NewPetsFormat"], newPets))
+        self:Print("|cff20ff20%s|r %s"):format(newPets, L["new pet(s) found!"])
     end
 end
 function MountManager:PetExists(petSpellID)
@@ -526,10 +526,10 @@ function MountManager:GenerateMacro()
     icon = string.sub(icon, 17)
     
     if self.db.profile.showInChat then
-        self:Print(string.format(L["ChatFormat"], name))
+        self:Print("%s |cff20ff20%s|r"):format(L["The next selected mount is"], name)
     end
     
-    EditMacro(index, "MountManager", icon, string.format(L["MacroFormat"], name, name))
+    EditMacro(index, "MountManager", icon, string.format("/script MountManagerButton:Click(GetMouseButtonClicked());\n#showtooltip %s", name))
 end
 
 function MountManager:GetRandomMount()

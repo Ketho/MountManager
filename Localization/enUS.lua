@@ -1,25 +1,23 @@
-﻿local L = LibStub("AceLocale-3.0"):NewLocale("MountManager", "L", true)
+﻿local AceLocale = LibStub:GetLibrary("AceLocale-3.0")
+local L = AceLocale:NewLocale("MountManager", "enUS", true)
+if not L then return end
 
 -- Configuration Screen
-L["Name"] = "MountManager"
-L["Description"] = "Description here..."
-L["Enable Chat"] = "Show in Chat"
-L["Enable Chat Desc"] = "Toggles the display of the mount name in the chat window."
-L["Always Different"] = "Always Different"
-L["Always Different Desc"] = "Always select a different mount than the previous one."
-L["Safe Flying"] = "Safe Flying"
-L["Safe Flying Desc"] = "Toggles the ability to dismount when flying"
-L["One Click"] = "One Click"
-L["One Click Desc"] = "One click will dismount you and summon the next available mount."
-L["Auto Next Mount"] = "Automatic Next Mount"
-L["Auto Next Mount Desc"] = "Automatically determine the next available random mount after summoning the currently selected one."
+L["Description"] = "MountManager creates a character specific macro to summon a random mount based on your current location and any options selected. Simply add the created macro to an action bar to use."
+L["Show in Chat"] = true
+L["Toggles the display of the mount name in the chat window."] = true
+L["Always Different"] = true
+L["Always select a different mount than the previous one."] = true
+L["Safe Flying"] = true
+L["Toggles the ability to dismount when flying"] = true
+L["One Click"] = true
+L["One click will dismount you and summon the next available mount."] = true
+L["Automatic Next Mount"] = true
+L["Automatically determine the next available random mount after summoning the currently selected one."] = true
 
 -- Misc
-L["RescanStart"] = "Beginning rescan..."
-L["RescanEnd"] = "Rescan complete"
-L["ChatFormat"] = "The next selected mount is |cff20ff20%s|r"
-L["NewMountsFormat"] = "|cff20ff20%s|r new mount(s) found!"
-L["NewPetsFormat"] = "|cff20ff20%s|r new pet(s) found!"
-
--- Macro
-L["MacroFormat"] = "/script MountManagerButton:Click(GetMouseButtonClicked());\n#showtooltip %s"
+L["Beginning rescan..."] = true
+L["Rescan complete"] = true
+L["The next selected mount is"] = true
+L["new mount(s) found!"] = true
+L["new pet(s) found!"] = true
