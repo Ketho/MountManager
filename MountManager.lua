@@ -349,7 +349,7 @@ function MountManager:ScanForNewMounts()
     end
     
     if newMounts > 0 then
-        self:Print("|cff20ff20%s|r %s"):format(newMounts, L["new mount(s) found!"])
+        self:Print(string.format("|cff20ff20%s|r %s", newMounts, L["new mount(s) found!"]))
 		self:UpdateMountChecks()
     end
 end
@@ -385,7 +385,7 @@ function MountManager:ScanForNewPets()
         end
     end
     if newPets > 0 then
-        self:Print("|cff20ff20%s|r %s"):format(newPets, L["new pet(s) found!"])
+        self:Print(string.format("|cff20ff20%s|r %s", newPets, L["new pet(s) found!"]))
     end
 end
 function MountManager:PetExists(petSpellID)
@@ -526,7 +526,7 @@ function MountManager:GenerateMacro()
     icon = string.sub(icon, 17)
     
     if self.db.profile.showInChat then
-        self:Print("%s |cff20ff20%s|r"):format(L["The next selected mount is"], name)
+        self:Print(string.format("%s |cff20ff20%s|r", L["The next selected mount is"], name))
     end
     
     EditMacro(index, "MountManager", icon, string.format("/script MountManagerButton:Click(GetMouseButtonClicked());\n#showtooltip %s", name))
