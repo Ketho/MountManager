@@ -1,16 +1,29 @@
 ## Interface: 50001
 ## Title: MountManager
 ## Notes: Interface-central mount management
-## Author: Dragoron
-## Version: v1.0
+## Author: @project-author@
+## Version: @project-version@
 ## SavedVariables: MountManagerDB
 ## OptionalDeps: Ace3, LibBabble-Zone-3.0, LibMounts-1.0
 ## X-Embeds: Ace3, LibBabble-Zone-3.0, LibMounts-1.0
 ## X-Category: Companions
 
+#@no-lib-strip@
 embeds.xml
+#@end-no-lib-strip@
+
 MountManager.xml
 
 Localization\enUS.lua
+Localization\deDE.lua
+Localization\esES.lua
+Localization\esMX.lua
+Localization\frFR.lua
+Localization\itIT.lua
+Localization\koKR.lua
+Localization\ptBR.lua
+Localization\ruRU.lua
+Localization\zhCN.lua
+Localization\zhTW.lua
 
 MountManager.lua

@@ -65,6 +65,7 @@ local defaults = {
         class = class,
         mount_skill = 0,
         mounts = {
+			skill = {},
             ground = {},
             flying = {},
             water = {},
@@ -93,6 +94,8 @@ local druidForms = {
     flight = 33943,
     swiftflight = 40120
 }
+-- Shaman ghost wolf form
+local ghostWolf = 2645
 
 ------------------------------------------------------------------
 -- Property Accessors
@@ -143,15 +146,15 @@ function MountManager:OnInitialize()
     self.optionsFrame = LibStub("AceConfigDialog-3.0"):AddToBlizOptions("MountManager", "MountManager")
     self:RegisterChatCommand("mountmanager", "ChatCommand")
     self:RegisterChatCommand("mm", "ChatCommand")
-    
+end
+
+function MountManager:OnEnable()
     -- Setup current character values
     self.db.char.level = UnitLevel("player")
     self.db.char.race = select(2, UnitRace("player"))
     self.db.char.class = UnitClass("player")
-    self:ACHIEVEMENT_EARNED()
-end
-
-function MountManager:OnEnable()
+    self:LEARNED_SPELL_IN_TAB()
+	
     -- Track the current combat state for summoning
     self:RegisterEvent("PLAYER_REGEN_DISABLED")
     self:RegisterEvent("PLAYER_REGEN_ENABLED")
@@ -164,8 +167,8 @@ function MountManager:OnEnable()
     self:RegisterEvent("SPELL_UPDATE_USABLE")
     
     -- Track riding skill to determine what mounts can be used
-    if self.db.char.mount_skill ~= 4 then
-        self:RegisterEvent("ACHIEVEMENT_EARNED")
+    if self.db.char.mount_skill ~= 5 then
+        self:RegisterEvent("LEARNED_SPELL_IN_TAB")
     end
     
     -- Learned a new mount or pet
@@ -180,15 +183,23 @@ function MountManager:OnEnable()
     if self.db.char.race == "Worgen" and self.db.char.mount_skill > 0 and not self:MountExists(worgenRacial) then
         self.db.char.mounts["ground"][worgenRacial] = true;
     end
-    if self.db.char.class == "DRUID" then
+    if self.db.char.class == "Druid" then
         self:RegisterEvent("UPDATE_SHAPESHIFT_FORMS")
         self:UPDATE_SHAPESHIFT_FORMS()
+    end
+    if self.db.char.class == "Shaman" and self.db.char.level > 14 then
+        self.db.char.mounts["skill"][ghostWolf] = true;
     end
     
     -- Track spell cast, to generate a new mount after the current has been cast
     self:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
 	
     self:RegisterEvent("ADDON_LOADED")
+	
+	-- cleanup: reclassify druid travel form as a skill instead of a ground mount
+	if self.db.char.mounts["ground"][druidForms.travel] == true then
+		self.db.char.mounts["ground"][druidForms.travel] = nil
+	end
 end
 
 ------------------------------------------------------------------
@@ -199,6 +210,7 @@ function MountManager:ChatCommand(input)
         self:Print(L["Beginning rescan..."])
 
         self.db.char.mounts = {
+			skill = {},
             ground = {},
             flying = {},
             water = {},
@@ -213,9 +225,12 @@ function MountManager:ChatCommand(input)
         if self.db.char.race == "Worgen" and self.db.char.mount_skill > 0 then
             self.db.char.mounts["ground"][worgenRacial] = true;
         end
-        if self.db.char.class == "DRUID" then
+        if self.db.char.class == "Druid" then
             self:UPDATE_SHAPESHIFT_FORMS()
         end
+		if self.db.char.class == "Shaman" and self.db.char.level > 14 then
+			self.db.char.mounts["skill"][ghostWolf] = true;
+		end
 
         self:Print(L["Rescan complete"])
     else
@@ -261,15 +276,17 @@ MountManager.ZONE_CHANGED_NEW_AREA = MountManager.ZONE_CHANGED
 MountManager.UPDATE_WORLD_STATES = MountManager.ZONE_CHANGED
 MountManager.SPELL_UPDATE_USABLE = MountManager.ZONE_CHANGED
 
-function MountManager:ACHIEVEMENT_EARNED()
-    if select(4, GetAchievementInfo(892)) then -- Fast Flight
+function MountManager:LEARNED_SPELL_IN_TAB()
+    if IsSpellKnown(90265) then -- Master (310 flight)
+        self.db.char.mount_skill = 5
+        self:UnregisterEvent("LEARNED_SPELL_IN_TAB")
+    elseif IsSpellKnown(34091) then -- Artisan (280 flight)
         self.db.char.mount_skill = 4
-        self:UnregisterEvent("ACHIEVEMENT_EARNED")
-    elseif select(4, GetAchievementInfo(890)) then -- Slow Flight
+    elseif IsSpellKnown(34090) then -- Expert (150 flight)
         self.db.char.mount_skill = 3
-    elseif select(4, GetAchievementInfo(889)) then -- Fast Ground
+    elseif IsSpellKnown(33391) then -- Journeyman (100 ground)
         self.db.char.mount_skill = 2
-    elseif select(4, GetAchievementInfo(891)) then -- Slow Ground
+    elseif IsSpellKnown(33388) then -- Apprentice (60 ground)
         self.db.char.mount_skill = 1
     end
 end
@@ -286,17 +303,17 @@ function MountManager:UNIT_SPELLCAST_SUCCEEDED(event, unit, spellName)
 end
 
 function MountManager:UPDATE_SHAPESHIFT_FORMS()
-    if not self:MountExists(druidForms.travel) and IsSpellKnown(druidForms.travel) then
-        self.db.char.mounts["ground"][druidForms.travel] = true
+    if IsSpellKnown(druidForms.travel) then
+        self.db.char.mounts["skill"][druidForms.travel] = true
+		self:Print("druid travel added")
     end
-    if not self:MountExists(druidForms.aquatic) and IsSpellKnown(druidForms.aquatic) then
+    if IsSpellKnown(druidForms.aquatic) then
         self.db.char.mounts["water"][druidForms.aquatic] = true
     end
-    if not self:MountExists(druidForms.flight) and IsSpellKnown(druidForms.flight) then
+    if IsSpellKnown(druidForms.flight) then
         self.db.char.mounts["flying"][druidForms.flight] = true
     end
-    if not self:MountExists(druidForms.swiftflight) and IsSpellKnown(druidForms.swiftflight) then
-        self.db.char.mounts["flying"][druidForms.flight] = false
+    if IsSpellKnown(druidForms.swiftflight) then
         self.db.char.mounts["flying"][druidForms.swiftflight] = true
     end
 end
@@ -522,60 +539,74 @@ function MountManager:GenerateMacro()
     end
     
     state.mount = self:GetRandomMount()
-    local name, rank, icon = GetSpellInfo(state.mount)
-    icon = string.sub(icon, 17)
-    
-    if self.db.profile.showInChat then
-        self:Print(string.format("%s |cff20ff20%s|r", L["The next selected mount is"], name))
-    end
-    
-    EditMacro(index, "MountManager", icon, string.format("/script MountManagerButton:Click(GetMouseButtonClicked());\n#showtooltip %s", name))
+	if state.mount ~= nil then
+		local name, rank, icon = GetSpellInfo(state.mount)
+		icon = string.sub(icon, 17)
+		
+		if self.db.profile.showInChat then
+			self:Print(string.format("%s |cff20ff20%s|r", L["The next selected mount is"], name))
+		end
+		
+		EditMacro(index, "MountManager", icon, string.format("/script MountManagerButton:Click(GetMouseButtonClicked());\n#showtooltip %s", name))
+	else
+		self:Print(L["There is no mount available for the current character."])
+	end
 end
 
 function MountManager:GetRandomMount()
+    if self.db.char.mount_skill == 0 then
+		return nil
+	end
+	
+	-- Determine what type to use, defaulting to class skill when the player cannot ride
     local type = "ground"
-    
-    local vash = { Z["Vashj'ir"], Z["Kelp'thar Forest"], Z["Shimmering Expanse"], Z["Abyssal Depths"], }
-    
-    -- Determine what type to use
-    if state.isSwimming == 1 then
-        type = "water"
-        
-        local present = false
-        for mount, active in pairs(self.db.char.mounts["vashj"]) do
-            if self.db.char.mounts["vashj"][mount] == true then
-                present = true
+	if state.isSwimming == 1 then
+		type = "water"
+		
+		-- If in Vashj, and at least one Vashj mount is present, use it
+		local vashj = { Z["Vashj'ir"], Z["Kelp'thar Forest"], Z["Shimmering Expanse"], Z["Abyssal Depths"], }
+		if vashj[state.zone] then
+			for mount, active in pairs(self.db.char.mounts["vashj"]) do
+				if self.db.char.mounts["vashj"][mount] == true then
+					type = "vashj"
+				end
+			end
+		end
+	elseif state.zone == Z["Temple of Ahn'Qiraj"] then
+        for mount, active in pairs(self.db.char.mounts["aq"]) do
+            if self.db.char.mounts["aq"][mount] == true then
+				type = "aq"
             end
         end
-        if present then
-            for i, value in pairs(vash) do
-                if state.zone == value then
-                    type = "vashj"
-                end
+	elseif state.isFlyable == 1 and not IsModifierKeyDown() then
+        for mount, active in pairs(self.db.char.mounts["flying"]) do
+            if self.db.char.mounts["flying"][mount] == true then
+				type = "flying"
             end
         end
-    elseif state.zone == Z["Temple of Ahn'Qiraj"] then
-        type = "aq"
-    elseif state.isFlyable == 1 and not IsModifierKeyDown() then
-        type = "flying"
-    end
-    
+	end
+	
     -- Narrow down the list to the available mounts of the selected type
     local mounts = {}
-    for mount, active in pairs(self.db.char.mounts[type]) do
-        if self.db.char.mounts[type][mount] == true then
-            mounts[#mounts + 1] = mount
-        end
-    end
+	for mount, active in pairs(self.db.char.mounts[type]) do
+		if self.db.char.mounts[type][mount] == true then
+			mounts[#mounts + 1] = mount
+		end
+	end
     
-    -- Grab a random mount from the narrowed list
-    local rand = random(1, #mounts)
-    local mount = mounts[rand]
-    if self.db.profile.alwaysDifferent == true and #mounts > 1 then
-        while state.mount == mount do
-            rand = random(1, #mounts)
-            mount = mounts[rand]
-        end
-    end
-    return mount
+	-- If there are no available mounts of the selected type, return nil
+	if #mounts == 0 then
+		return nil
+	end
+	
+	-- Grab a random mount from the narrowed list
+	local rand = random(1, #mounts)
+	local mount = mounts[rand]
+	if #mounts > 1 and self.db.profile.alwaysDifferent then
+		while state.mount == mount do
+			rand = random(1, #mounts)
+			mount = mounts[rand]
+		end
+	end
+	return mount
 end
