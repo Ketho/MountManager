@@ -565,7 +565,13 @@ function MountManager:GetRandomMount()
 		
 		-- If in Vashj, and at least one Vashj mount is present, use it
 		local vashj = { Z["Vashj'ir"], Z["Kelp'thar Forest"], Z["Shimmering Expanse"], Z["Abyssal Depths"], }
-		if vashj[state.zone] then
+		local present = false;
+		for i, value in pairs(vashj) do
+			if state.zone == value then
+				present = true
+			end
+		end
+		if present then
 			for mount, active in pairs(self.db.char.mounts["vashj"]) do
 				if self.db.char.mounts["vashj"][mount] == true then
 					type = "vashj"
