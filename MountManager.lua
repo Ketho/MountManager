@@ -1,6 +1,7 @@
 ﻿MountManager = LibStub("AceAddon-3.0"):NewAddon("MountManager", "AceConsole-3.0", "AceEvent-3.0")
 local L = LibStub("AceLocale-3.0"):GetLocale("MountManager")
 local Z = LibStub("LibBabble-Zone-3.0"):GetLookupTable()
+local M = LibStub("LibMounts-1.0")
 
 ------------------------------------------------------------------
 -- Local Settings
@@ -63,6 +64,7 @@ local defaults = {
         level = level,
         race = race,
         class = class,
+		prof = {},
         mount_skill = 0,
         mounts = {
 			skill = {},
@@ -96,6 +98,14 @@ local druidForms = {
 }
 -- Shaman ghost wolf form
 local ghostWolf = 2645
+
+-- A list of all the Vashj'ir zones for reference
+local vashj = { 
+	[Z["Vashj'ir"]] = true, 
+	[Z["Kelp'thar Forest"]] = true, 
+	[Z["Shimmering Expanse"]] = true, 
+	[Z["Abyssal Depths"]] = true
+}
 
 ------------------------------------------------------------------
 -- Property Accessors
@@ -153,6 +163,13 @@ function MountManager:OnEnable()
     self.db.char.level = UnitLevel("player")
     self.db.char.race = select(2, UnitRace("player"))
     self.db.char.class = UnitClass("player")
+	local prof1, prof2 = GetProfessions()
+	local name1, _, rank1 = GetProfessionInfo(prof1)
+	local name2, _, rank2 = GetProfessionInfo(prof2)
+	self.db.char.prof = {
+		[name1] = rank1,
+		[name2] = rank2
+	}
     self:LEARNED_SPELL_IN_TAB()
 	
     -- Track the current combat state for summoning
@@ -252,7 +269,7 @@ function MountManager:ZONE_CHANGED()
     local prevSwimming = state.isSwimming
     local prevFlyable = state.isFlyable
     
-    state.isSwimming = IsSwimming()
+    state.isSwimming = IsSwimming() or IsSubmerged()
     
     state.zone = GetRealZoneText()
     if state.zone == Z["Wintergrasp"] then
@@ -335,7 +352,7 @@ function MountManager:ScanForNewMounts()
         if not self:MountExists(mountSpellID) then
             newMounts = newMounts + 1
 
-            local ground, air, water, speed, location = LibStub("LibMounts-1.0"):GetMountInfo(mountSpellID)
+            local ground, air, water, speed, location = M:GetMountInfo(mountSpellID)
 
             if location then
                 if location == "Temple of Ahn'Qiraj" then
@@ -558,61 +575,74 @@ function MountManager:GetRandomMount()
 		return nil
 	end
 	
-	-- Determine what type to use, defaulting to class skill when the player cannot ride
-    local type = "ground"
-	if state.isSwimming == 1 then
-		type = "water"
-		
-		-- If in Vashj, and at least one Vashj mount is present, use it
-		local vashj = { Z["Vashj'ir"], Z["Kelp'thar Forest"], Z["Shimmering Expanse"], Z["Abyssal Depths"], }
-		local present = false;
-		for i, value in pairs(vashj) do
-			if state.zone == value then
-				present = true
+	-- Determine state order for looking for a mount
+    local typeList = {}
+	if vashj[state.zone] then -- in Vashj'ir
+		if state.isFlyable == 1 and not IsModifierKeyDown() then
+			typeList = { "flying", "vashj", "water", "ground" }
+		elseif state.isSwimming == 1 then
+			typeList = { "vashj", "water", "ground" }
+		else
+			typeList = { "ground" }
+		end
+	elseif state.zone == Z["Temple of Ahn'Qiraj"] then -- in AQ
+		if state.isSwimming == 1 then
+			typeList = { "water", "aq", "ground" }
+		else
+			typeList = { "aq", "ground" }
+		end
+	elseif state.isSwimming == 1 then
+		if state.isFlyable == 1 and not IsModifierKeyDown() then
+			typeList = { "flying", "water", "ground" }
+		else
+			typeList = { "water", "ground" }
+		end
+	elseif state.isFlyable == 1 and not IsModifierKeyDown() then
+		typeList = { "flying", "ground" }
+	else
+		typeList = { "ground" }
+	end
+	
+	-- Cycle through the type list
+	for i, type in pairs(typeList) do
+		-- Make a sublist of any valid mounts of the selected type
+		local mounts = {}
+		for mount, active in pairs(self.db.char.mounts[type]) do
+			if self.db.char.mounts[type][mount] == true and self:CheckProfession(mount) then
+				mounts[#mounts + 1] = mount
 			end
 		end
-		if present then
-			for mount, active in pairs(self.db.char.mounts["vashj"]) do
-				if self.db.char.mounts["vashj"][mount] == true then
-					type = "vashj"
+		
+		-- If there were any matching mounts of the current type, then proceed, otherwise move to the next type
+		if #mounts > 0 then
+			-- Grab a random mount from the narrowed list
+			local rand = random(1, #mounts)
+			local mount = mounts[rand]
+			if state.mount == mount and self.db.profile.alwaysDifferent and #mounts > 1 then
+				while state.mount == mount do
+					rand = random(1, #mounts)
+					mount = mounts[rand]
 				end
 			end
+			return mount
 		end
-	elseif state.zone == Z["Temple of Ahn'Qiraj"] then
-        for mount, active in pairs(self.db.char.mounts["aq"]) do
-            if self.db.char.mounts["aq"][mount] == true then
-				type = "aq"
-            end
-        end
-	elseif state.isFlyable == 1 and not IsModifierKeyDown() then
-        for mount, active in pairs(self.db.char.mounts["flying"]) do
-            if self.db.char.mounts["flying"][mount] == true then
-				type = "flying"
-            end
-        end
 	end
 	
-    -- Narrow down the list to the available mounts of the selected type
-    local mounts = {}
-	for mount, active in pairs(self.db.char.mounts[type]) do
-		if self.db.char.mounts[type][mount] == true then
-			mounts[#mounts + 1] = mount
+	-- If this point has been reached, then no matching mount was found
+	return nil
+end
+
+-- Profession restricted mounts
+local profMounts = M.data["professionRestricted"]
+function MountManager:CheckProfession(spell)
+	if profMounts[spell] then
+		local skill = GetSpellInfo(profMounts[spell][1])
+		local req = profMounts[spell][2]
+		if self.db.char.prof[skill] then
+			return self.db.char.prof[skill] >= req
+		else
+			return false
 		end
 	end
-    
-	-- If there are no available mounts of the selected type, return nil
-	if #mounts == 0 then
-		return nil
-	end
-	
-	-- Grab a random mount from the narrowed list
-	local rand = random(1, #mounts)
-	local mount = mounts[rand]
-	if #mounts > 1 and self.db.profile.alwaysDifferent then
-		while state.mount == mount do
-			rand = random(1, #mounts)
-			mount = mounts[rand]
-		end
-	end
-	return mount
+	return true
 end
