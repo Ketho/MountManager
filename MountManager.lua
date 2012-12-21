@@ -159,6 +159,9 @@ function MountManager:OnInitialize()
 end
 
 function MountManager:OnEnable()
+	-- Add missing mount data (need to replace Lib with more reliable implementation)
+	self:AddMissingData()
+
     -- Setup current character values
     self.db.char.level = UnitLevel("player")
     self.db.char.race = select(2, UnitRace("player"))
@@ -211,6 +214,23 @@ function MountManager:OnEnable()
     self:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
 	
     self:RegisterEvent("ADDON_LOADED")
+end
+
+function MountManager:AddMissingData()
+	M.data["ground"][130138] = true --Black Riding Goat
+	M.data["ground"][130086] = true --Brown Riding Goat
+	M.data["ground"][130137] = true --White Riding Goat
+	
+	M.data["air"][136163] = true 	--Grand Gryphon
+	M.data["ground"][136163] = true --Grand Gryphon
+	M.data["air"][135416] = true 	--Grand Armored Gryphon
+	M.data["ground"][135416] = true --Grand Armored Gryphon
+	M.data["air"][136164] = true 	--Grand Wyvern
+	M.data["ground"][136164] = true --Grand Wyvern
+	M.data["air"][135418] = true 	--Grand Armored Wyvern
+	M.data["ground"][135418] = true --Grand Armored Wyvern
+	
+	M.data["air"][133023] = true --Jade Pandaren Kite
 end
 
 ------------------------------------------------------------------
@@ -586,7 +606,7 @@ function MountManager:GetRandomMount()
 		-- Make a sublist of any valid mounts of the selected type
 		local mounts = {}
 		for mount, active in pairs(self.db.char.mounts[type]) do
-			if self.db.char.mounts[type][mount] == true and self:CheckProfession(mount) then
+			if self.db.char.mounts[type][mount] == true and self:CheckProfession(mount) and self:CheckSerpent(mount) then
 				mounts[#mounts + 1] = mount
 			end
 		end
@@ -621,6 +641,32 @@ function MountManager:CheckProfession(spell)
 		else
 			return false
 		end
+	end
+	return true
+end
+
+-- Cloud Serpents
+local serpents = {
+	[113199] = true, --Jade Cloud Serpent
+	[123992] = true, --Azure Cloud Serpent
+	[123993] = true, --Golden Cloud Serpent
+	[127154] = true, --Onyx Cloud Serpent
+	[127156] = true, --Crimson Cloud Serpent
+	[127170] = true, --Astral Cloud Serpent
+	
+	[127158] = true, --Heavenly Onyx Cloud Serpent
+	[127161] = true, --Heavenly Crimson Cloud Serpent
+	[127164] = true, --Heavenly Golden Cloud Serpent
+	[127165] = true, --Heavenly Jade Cloud Serpent
+	[127169] = true, --Heavenly Azure Cloud Serpent
+	
+	[124408] = true, --Thundering Jade Cloud Serpent
+	[129918] = true, --Thundering August Cloud Serpent
+	[132036] = true, --Thundering Ruby Cloud Serpent
+}
+function MountManager:CheckSerpent(spell)
+	if serpents[spell] then
+		return self.db.char.serpent
 	end
 	return true
 end
