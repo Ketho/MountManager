@@ -66,6 +66,7 @@ local defaults = {
         class = class,
 		prof = {},
         mount_skill = 0,
+		serpent = false,
         mounts = {
 			skill = {},
             ground = {},
@@ -73,8 +74,7 @@ local defaults = {
             water = {},
             aq = {},
             vashj = {},
-        },
-        pets = {}
+        }
     },
     profile = {
         showInChat = false,
@@ -184,16 +184,15 @@ function MountManager:OnEnable()
     self:RegisterEvent("SPELL_UPDATE_USABLE")
     
     -- Track riding skill to determine what mounts can be used
-    if self.db.char.mount_skill ~= 5 then
+    if self.db.char.mount_skill ~= 5 or not self.db.char.serpent then
         self:RegisterEvent("LEARNED_SPELL_IN_TAB")
     end
     
-    -- Learned a new mount or pet
+    -- Learned a new mount
     self:RegisterEvent("COMPANION_LEARNED")
     
     -- Perform an initial scan
     self:ScanForNewMounts()
-    self:ScanForNewPets()
     self:ZONE_CHANGED()
     
     -- Add race and class specific spells
@@ -212,11 +211,6 @@ function MountManager:OnEnable()
     self:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
 	
     self:RegisterEvent("ADDON_LOADED")
-	
-	-- cleanup: reclassify druid travel form as a skill instead of a ground mount
-	if self.db.char.mounts["ground"][druidForms.travel] == true then
-		self.db.char.mounts["ground"][druidForms.travel] = nil
-	end
 end
 
 ------------------------------------------------------------------
@@ -234,10 +228,8 @@ function MountManager:ChatCommand(input)
             aq = {},
             vashj = {},
         }
-        self.db.char.pets = {}
         
         self:ScanForNewMounts()
-        self:ScanForNewPets()
         
         if self.db.char.race == "Worgen" and self.db.char.mount_skill > 0 then
             self.db.char.mounts["ground"][worgenRacial] = true;
@@ -296,7 +288,9 @@ MountManager.SPELL_UPDATE_USABLE = MountManager.ZONE_CHANGED
 function MountManager:LEARNED_SPELL_IN_TAB()
     if IsSpellKnown(90265) then -- Master (310 flight)
         self.db.char.mount_skill = 5
-        self:UnregisterEvent("LEARNED_SPELL_IN_TAB")
+		if self.db.char.serpent then
+			self:UnregisterEvent("LEARNED_SPELL_IN_TAB")
+		end
     elseif IsSpellKnown(34091) then -- Artisan (280 flight)
         self.db.char.mount_skill = 4
     elseif IsSpellKnown(34090) then -- Expert (150 flight)
@@ -306,11 +300,17 @@ function MountManager:LEARNED_SPELL_IN_TAB()
     elseif IsSpellKnown(33388) then -- Apprentice (60 ground)
         self.db.char.mount_skill = 1
     end
+	
+	if IsSpellKnown(130487) then -- Cloud Serpent Riding
+		self.db.char.serpent = true
+		if self.db.char.mount_skill == 5 then
+			self:UnregisterEvent("LEARNED_SPELL_IN_TAB")
+		end
+	end
 end
 
 function MountManager:COMPANION_LEARNED()
     self:ScanForNewMounts()
-    self:ScanForNewPets()
 end
 
 function MountManager:UNIT_SPELLCAST_SUCCEEDED(event, unit, spellName)
@@ -322,7 +322,6 @@ end
 function MountManager:UPDATE_SHAPESHIFT_FORMS()
     if IsSpellKnown(druidForms.travel) then
         self.db.char.mounts["skill"][druidForms.travel] = true
-		self:Print("druid travel added")
     end
     if IsSpellKnown(druidForms.aquatic) then
         self.db.char.mounts["water"][druidForms.aquatic] = true
@@ -405,39 +404,6 @@ function MountManager:SummonMount(mount)
 end
 
 ------------------------------------------------------------------
--- Pet Methods
-------------------------------------------------------------------
-function MountManager:ScanForNewPets()
-    local newPets = 0
-    for id = 1,GetNumCompanions("CRITTER") do
-        local petSpellID = select(3, GetCompanionInfo("CRITTER", id))
-        --make sure its not already found
-        if not self:PetExists(petSpellID) then
-            newPets = newPets + 1
-
-            self.db.char.pets[petSpellID] = true
-        end
-    end
-    if newPets > 0 then
-        self:Print(string.format("|cff20ff20%s|r %s", newPets, L["new pet(s) found!"]))
-    end
-end
-function MountManager:PetExists(petSpellID)
-    if self.db.char.pets[petSpellID] ~= nil then
-        return true
-    end
-    return false
-end
-function MountManager:SummonPet(pet)
-    for id = 1,GetNumCompanions("CRITTER") do
-        local spellID = select(3, GetCompanionInfo("CRITTER", id))
-        if spellID == pet then
-            CallCompanion("CRITTER", id)
-        end
-    end
-end
-
-------------------------------------------------------------------
 -- Mount Configuration
 ------------------------------------------------------------------
 function MountManager:HijackMountFrame()
@@ -457,6 +423,7 @@ function MountManager:HijackMountFrame()
 		local parent = buttons[idx];
 		if idx <= numMounts then
 			local button = CreateFrame("CheckButton", "MountCheckButton" .. idx, parent, "UICheckButtonTemplate")
+			button:SetEnabled(false)
 			button:SetPoint("TOPRIGHT", 0, 0)
 			button:HookScript("OnClick", function(self)
 				MountManager:MountCheckButton_OnClick(self)
@@ -471,6 +438,11 @@ function MountManager:HijackMountFrame()
 		MountManager:UpdateMountChecks()
 	end)
 	scrollFrame:HookScript("OnVerticalScroll", function(self)
+		MountManager:UpdateMountChecks()
+	end)
+	
+	-- hook up events to update check state on search
+	MountJournal.searchBox:HookScript("OnTextChanged", function(self)
 		MountManager:UpdateMountChecks()
 	end)
 
@@ -495,7 +467,11 @@ function MountManager:UpdateMountChecks()
 					end
 				end
 
+				button:SetEnabled(true)
 				button:SetChecked(checked)
+			else
+				button:SetEnabled(false)
+				button:SetChecked(false)
 			end
 		end
 	end
@@ -585,8 +561,10 @@ function MountManager:GetRandomMount()
 		else
 			typeList = { "ground" }
 		end
-	elseif state.zone == Z["Temple of Ahn'Qiraj"] then -- in AQ
-		if state.isSwimming == 1 then
+	elseif state.zone == Z["Ahn'Qiraj"] then -- in AQ
+		if IsModifierKeyDown() then
+			typeList = { "ground" }
+		elseif state.isSwimming == 1 then
 			typeList = { "water", "aq", "ground" }
 		else
 			typeList = { "aq", "ground" }
