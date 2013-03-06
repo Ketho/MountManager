@@ -1,6 +1,5 @@
 ﻿MountManager = LibStub("AceAddon-3.0"):NewAddon("MountManager", "AceConsole-3.0", "AceEvent-3.0")
 local L = LibStub("AceLocale-3.0"):GetLocale("MountManager")
-local Z = LibStub("LibBabble-Zone-3.0"):GetLookupTable()
 local M = LibStub("LibMounts-1.0")
 
 ------------------------------------------------------------------
@@ -98,14 +97,17 @@ local druidForms = {
 }
 -- Shaman ghost wolf form
 local ghostWolf = 2645
+-- Monk zen flight
+local zenFlight = 125883
 
 -- A list of all the Vashj'ir zones for reference
 local vashj = { 
-	[Z["Vashj'ir"]] = true, 
-	[Z["Kelp'thar Forest"]] = true, 
-	[Z["Shimmering Expanse"]] = true, 
-	[Z["Abyssal Depths"]] = true
+	[613] = true, -- Vashj'ir
+	[610] = true, -- Kelp'thar Forest
+	[615] = true, -- Shimmering Expanse
+	[614] = true  -- Abyssal Depths
 }
+local SetMapToCurrentZone = SetMapToCurrentZone;
 
 ------------------------------------------------------------------
 -- Property Accessors
@@ -180,11 +182,11 @@ function MountManager:OnEnable()
     self:RegisterEvent("PLAYER_REGEN_ENABLED")
     
     -- Track the current zone and player state for summoning restrictions
-    self:RegisterEvent("ZONE_CHANGED")
-    self:RegisterEvent("ZONE_CHANGED_INDOORS")
-    self:RegisterEvent("ZONE_CHANGED_NEW_AREA")
-    self:RegisterEvent("UPDATE_WORLD_STATES")
-    self:RegisterEvent("SPELL_UPDATE_USABLE")
+    self:RegisterEvent("ZONE_CHANGED_NEW_AREA")	-- new world zone
+    self:RegisterEvent("ZONE_CHANGED")			-- new sub-zone
+    self:RegisterEvent("ZONE_CHANGED_INDOORS")	-- new city sub-zone
+    self:RegisterEvent("UPDATE_WORLD_STATES")	-- world pvp objectives updated
+    self:RegisterEvent("SPELL_UPDATE_USABLE")	-- self-explanatory
     
     -- Track riding skill to determine what mounts can be used
     if self.db.char.mount_skill ~= 5 or not self.db.char.serpent then
@@ -196,7 +198,7 @@ function MountManager:OnEnable()
     
     -- Perform an initial scan
     self:ScanForNewMounts()
-    self:ZONE_CHANGED()
+    self:ZONE_CHANGED_NEW_AREA()
     
     -- Add race and class specific spells
     if self.db.char.race == "Worgen" and self.db.char.mount_skill > 0 and not self:MountExists(worgenRacial) then
@@ -206,6 +208,9 @@ function MountManager:OnEnable()
         self:RegisterEvent("UPDATE_SHAPESHIFT_FORMS")
         self:UPDATE_SHAPESHIFT_FORMS()
     end
+	if self.db.char.class == "Monk" then
+		self.db.char.mounts["air"][zenFlight] = IsSpellKnown(zenFlight);
+	end
     if self.db.char.class == "Shaman" and self.db.char.level > 14 then
         self.db.char.mounts["skill"][ghostWolf] = true;
     end
@@ -230,7 +235,9 @@ function MountManager:AddMissingData()
 	M.data["air"][135418] = true 	--Grand Armored Wyvern
 	M.data["ground"][135418] = true --Grand Armored Wyvern
 	
-	M.data["air"][133023] = true --Jade Pandaren Kite
+	M.data["air"][133023] = true 	--Jade Pandaren Kite
+	M.data["air"][134573] = true 	--Swift Windsteed
+	M.data["ground"][134573] = true --Swift Windsteed
 end
 
 ------------------------------------------------------------------
@@ -257,6 +264,9 @@ function MountManager:ChatCommand(input)
         if self.db.char.class == "Druid" then
             self:UPDATE_SHAPESHIFT_FORMS()
         end
+		if self.db.char.class == "Monk" then
+			self.db.char.mounts["air"][zenFlight] = IsSpellKnown(zenFlight);
+		end
 		if self.db.char.class == "Shaman" and self.db.char.level > 14 then
 			self.db.char.mounts["skill"][ghostWolf] = true;
 		end
@@ -275,7 +285,13 @@ function MountManager:PLAYER_REGEN_ENABLED()
     state.inCombat = false
 end
 
-function MountManager:ZONE_CHANGED()
+function MountManager:ZONE_CHANGED_NEW_AREA()
+	SetMapToCurrentZone();
+	state.zone = GetCurrentMapAreaID()
+	
+	self:UpdateZoneStatus()
+end
+function MountManager:UpdateZoneStatus()
     if InCombatLockdown() or state.inCombat then return end
     
     local prevSwimming = state.isSwimming
@@ -283,8 +299,7 @@ function MountManager:ZONE_CHANGED()
     
     state.isSwimming = IsSwimming() or IsSubmerged()
     
-    state.zone = GetRealZoneText()
-    if state.zone == Z["Wintergrasp"] then
+    if state.zone == 501 then -- Wintergrasp
         if GetWintergraspWaitTime() then
             state.isFlyable = 1
         else  
@@ -300,17 +315,14 @@ function MountManager:ZONE_CHANGED()
         self:GenerateMacro()
     end
 end
-MountManager.ZONE_CHANGED_INDOORS = MountManager.ZONE_CHANGED
-MountManager.ZONE_CHANGED_NEW_AREA = MountManager.ZONE_CHANGED
-MountManager.UPDATE_WORLD_STATES = MountManager.ZONE_CHANGED
-MountManager.SPELL_UPDATE_USABLE = MountManager.ZONE_CHANGED
+MountManager.ZONE_CHANGED = MountManager.UpdateZoneStatus
+MountManager.ZONE_CHANGED_INDOORS = MountManager.UpdateZoneStatus
+MountManager.UPDATE_WORLD_STATES = MountManager.UpdateZoneStatus
+MountManager.SPELL_UPDATE_USABLE = MountManager.UpdateZoneStatus
 
 function MountManager:LEARNED_SPELL_IN_TAB()
     if IsSpellKnown(90265) then -- Master (310 flight)
         self.db.char.mount_skill = 5
-		if self.db.char.serpent then
-			self:UnregisterEvent("LEARNED_SPELL_IN_TAB")
-		end
     elseif IsSpellKnown(34091) then -- Artisan (280 flight)
         self.db.char.mount_skill = 4
     elseif IsSpellKnown(34090) then -- Expert (150 flight)
@@ -323,9 +335,10 @@ function MountManager:LEARNED_SPELL_IN_TAB()
 	
 	if IsSpellKnown(130487) then -- Cloud Serpent Riding
 		self.db.char.serpent = true
-		if self.db.char.mount_skill == 5 then
-			self:UnregisterEvent("LEARNED_SPELL_IN_TAB")
-		end
+	end
+	
+	if self.db.char.class == "Monk" then
+		self.db.char.mounts["air"][zenFlight] = IsSpellKnown(zenFlight);
 	end
 end
 
@@ -581,7 +594,7 @@ function MountManager:GetRandomMount()
 		else
 			typeList = { "ground" }
 		end
-	elseif state.zone == Z["Ahn'Qiraj"] then -- in AQ
+	elseif state.zone == 766 then -- in AQ
 		if IsModifierKeyDown() then
 			typeList = { "ground" }
 		elseif state.isSwimming == 1 then

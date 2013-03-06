@@ -28,9 +28,6 @@ externals:
 	Libs\AceLocale-3.0:
 		url: svn://svn.wowace.com/wow/ace3/mainline/trunk/AceLocale-3.0
 		tag: latest
-	Libs\LibBabble-Zone-3.0:
-		url: svn://svn.wowace.com/wow/libbabble-zone-3-0/mainline/trunk
-		tag: latest
 	Libs\LibMounts-1.0:
 		url: svn://svn.wowace.com/wow/libmounts-1-0/mainline/trunk
 		tag: latest

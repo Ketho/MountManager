@@ -8,6 +8,5 @@
 	<Include file="Libs\AceDBOptions-3.0\AceDBOptions-3.0.xml"/>
 	<Include file="Libs\AceEvent-3.0\AceEvent-3.0.xml"/>
 	<Include file="Libs\AceLocale-3.0\AceLocale-3.0.xml"/>
-	<Include file="Libs\LibBabble-Zone-3.0\lib.xml"/>
 	<Include file="Libs\LibMounts-1.0\LibMounts-1.0\lib.xml"/>
 </Ui>
