@@ -169,24 +169,35 @@ function MountManager:OnEnable()
     self.db.char.race = select(2, UnitRace("player"))
     self.db.char.class = UnitClass("player")
 	local prof1, prof2 = GetProfessions()
-	local name1, _, rank1 = GetProfessionInfo(prof1)
-	local name2, _, rank2 = GetProfessionInfo(prof2)
-	self.db.char.prof = {
-		[name1] = rank1,
-		[name2] = rank2
-	}
+	if prof1 ~= nil then
+		local name1, _, rank1 = GetProfessionInfo(prof1)
+		local name2, _, rank2 = GetProfessionInfo(prof2)
+		self.db.char.prof = {
+			[name1] = rank1,
+			[name2] = rank2
+		}
+	end
     self:LEARNED_SPELL_IN_TAB()
 	
     -- Track the current combat state for summoning
-    self:RegisterEvent("PLAYER_REGEN_DISABLED")
-    self:RegisterEvent("PLAYER_REGEN_ENABLED")
+    self:RegisterEvent("PLAYER_REGEN_DISABLED", "UpdateCombatState")
+    self:RegisterEvent("PLAYER_REGEN_ENABLED", "UpdateCombatState")
+    self:RegisterEvent("PET_BATTLE_OPENING_START", "UpdatePetBattleState")
+    self:RegisterEvent("PET_BATTLE_OPENING_DONE", "UpdatePetBattleState")
+    self:RegisterEvent("PET_BATTLE_CLOSE", "UpdatePetBattleState")
     
     -- Track the current zone and player state for summoning restrictions
-    self:RegisterEvent("ZONE_CHANGED_NEW_AREA")	-- new world zone
-    self:RegisterEvent("ZONE_CHANGED")			-- new sub-zone
-    self:RegisterEvent("ZONE_CHANGED_INDOORS")	-- new city sub-zone
-    self:RegisterEvent("UPDATE_WORLD_STATES")	-- world pvp objectives updated
-    self:RegisterEvent("SPELL_UPDATE_USABLE")	-- self-explanatory
+    self:RegisterEvent("ZONE_CHANGED_NEW_AREA")						-- new world zone
+    self:RegisterEvent("ZONE_CHANGED", "UpdateZoneStatus")			-- new sub-zone
+    self:RegisterEvent("ZONE_CHANGED_INDOORS", "UpdateZoneStatus")	-- new city sub-zone
+    self:RegisterEvent("UPDATE_WORLD_STATES", "UpdateZoneStatus")	-- world pvp objectives updated
+    self:RegisterEvent("SPELL_UPDATE_USABLE", "UpdateZoneStatus")	-- self-explanatory
+	
+	--[[-- Handle entering and exiting water
+	local f = CreateFrame("Frame", "MyStateWatcher", UIParent, "SecureHandlerStateTemplate")
+	f:SetScript("OnShow", function() self:UpdateZoneStatus() end)
+	f:SetScript("OnHide", function() self:UpdateZoneStatus() end)
+	RegisterStateDriver(f, "visibility", "[swimming] show; hide")]]
     
     -- Track riding skill to determine what mounts can be used
     if self.db.char.mount_skill ~= 5 or not self.db.char.serpent then
@@ -198,22 +209,8 @@ function MountManager:OnEnable()
     
     -- Perform an initial scan
     self:ScanForNewMounts()
+	self:ScanForRaceClass()
     self:ZONE_CHANGED_NEW_AREA()
-    
-    -- Add race and class specific spells
-    if self.db.char.race == "Worgen" and self.db.char.mount_skill > 0 and not self:MountExists(worgenRacial) then
-        self.db.char.mounts["ground"][worgenRacial] = true;
-    end
-    if self.db.char.class == "Druid" then
-        self:RegisterEvent("UPDATE_SHAPESHIFT_FORMS")
-        self:UPDATE_SHAPESHIFT_FORMS()
-    end
-	--if self.db.char.class == "Monk" then
-	--	self.db.char.mounts["flying"][zenFlight] = IsSpellKnown(zenFlight);
-	--end
-    if self.db.char.class == "Shaman" and self.db.char.level > 14 then
-        self.db.char.mounts["skill"][ghostWolf] = true;
-    end
     
     -- Track spell cast, to generate a new mount after the current has been cast
     self:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
@@ -257,19 +254,7 @@ function MountManager:ChatCommand(input)
         }
         
         self:ScanForNewMounts()
-        
-        if self.db.char.race == "Worgen" and self.db.char.mount_skill > 0 then
-            self.db.char.mounts["ground"][worgenRacial] = true;
-        end
-        if self.db.char.class == "Druid" then
-            self:UPDATE_SHAPESHIFT_FORMS()
-        end
-		--if self.db.char.class == "Monk" then
-		--	self.db.char.mounts["flying"][zenFlight] = IsSpellKnown(zenFlight);
-		--end
-		if self.db.char.class == "Shaman" and self.db.char.level > 14 then
-			self.db.char.mounts["skill"][ghostWolf] = true;
-		end
+		self:ScanForRaceClass()
 
         self:Print(L["Rescan complete"])
     else
@@ -277,35 +262,31 @@ function MountManager:ChatCommand(input)
     end
 end
 
-function MountManager:PLAYER_REGEN_DISABLED()
-    state.inCombat = true
+function MountManager:UpdateCombatState()
+    state.inCombat = UnitAffectingCombat("player") == 1
 end
-
-function MountManager:PLAYER_REGEN_ENABLED()
-    state.inCombat = false
+function MountManager:UpdatePetBattleState(event)
+    state.inPetBattle = C_PetBattles.IsInBattle() == true
 end
 
 function MountManager:ZONE_CHANGED_NEW_AREA()
-	SetMapToCurrentZone();
-	state.zone = GetCurrentMapAreaID()
+	if not InCombatLockdown() then
+		SetMapToCurrentZone();
+		state.zone = GetCurrentMapAreaID()
+	end
 	
 	self:UpdateZoneStatus()
 end
-function MountManager:UpdateZoneStatus()
-    if InCombatLockdown() or state.inCombat then return end
+function MountManager:UpdateZoneStatus(event)
+    if InCombatLockdown() or state.inCombat or state.inPetBattle then return end
     
     local prevSwimming = state.isSwimming
     local prevFlyable = state.isFlyable
     
     state.isSwimming = IsSwimming() or IsSubmerged()
     
-    if state.zone == 501 then -- Wintergrasp
-        if GetWintergraspWaitTime() then
-            state.isFlyable = 1
-        else  
-            state.isFlyable = 0  
-        end
-    elseif IsFlyableArea() and (self.db.char.mount_skill > 2) and IsUsableSpell(flightTest) then
+	local usable, _ = IsUsableSpell(flightTest)
+    if IsFlyableArea() and self.db.char.mount_skill > 2 and usable == 1 then
         state.isFlyable = 1
     else
         state.isFlyable = 0
@@ -315,10 +296,6 @@ function MountManager:UpdateZoneStatus()
         self:GenerateMacro()
     end
 end
-MountManager.ZONE_CHANGED = MountManager.UpdateZoneStatus
-MountManager.ZONE_CHANGED_INDOORS = MountManager.UpdateZoneStatus
-MountManager.UPDATE_WORLD_STATES = MountManager.UpdateZoneStatus
-MountManager.SPELL_UPDATE_USABLE = MountManager.UpdateZoneStatus
 
 function MountManager:LEARNED_SPELL_IN_TAB()
     if IsSpellKnown(90265) then -- Master (310 flight)
@@ -337,9 +314,9 @@ function MountManager:LEARNED_SPELL_IN_TAB()
 		self.db.char.serpent = true
 	end
 	
-	--if self.db.char.class == "Monk" then
-	--	self.db.char.mounts["flying"][zenFlight] = IsSpellKnown(zenFlight);
-	--end
+	--[[if self.db.char.class == "Monk" then
+		self.db.char.mounts["flying"][zenFlight] = IsSpellKnown(zenFlight);
+	end]]
 end
 
 function MountManager:COMPANION_LEARNED()
@@ -379,36 +356,34 @@ end
 function MountManager:ScanForNewMounts()
     local newMounts = 0
     for id = 1,GetNumCompanions("MOUNT") do
-        local mountSpellID = select(3, GetCompanionInfo("MOUNT", id))
+        local _, _, spellID, _, _, mountFlags = GetCompanionInfo("MOUNT", id)
         --make sure its not already found
-        if not self:MountExists(mountSpellID) then
+        if not self:MountExists(spellID) then
             newMounts = newMounts + 1
 
-            local ground, air, water, speed, location = M:GetMountInfo(mountSpellID)
+            local ground, air, water, speed, location = M:GetMountInfo(spellID)
 
             if location then
                 if location == "Temple of Ahn'Qiraj" then
                     self.db.char.mounts["aq"] = self.db.char.mounts["aq"] or {}
-                    self.db.char.mounts["aq"][mountSpellID] = true
+                    self.db.char.mounts["aq"][spellID] = true
                 end
                 if location == "Vashj'ir" then
                     self.db.char.mounts["vashj"] = self.db.char.mounts["vashj"] or {}
-                    self.db.char.mounts["vashj"][mountSpellID] = true
+                    self.db.char.mounts["vashj"][spellID] = true
                 end
             else
                 if ground then
                     self.db.char.mounts["ground"] = self.db.char.mounts["ground"] or {}
-                    self.db.char.mounts["ground"][mountSpellID] = true
+                    self.db.char.mounts["ground"][spellID] = true
                 end
                 if air then
                     self.db.char.mounts["flying"] = self.db.char.mounts["flying"] or {}
-                    self.db.char.mounts["flying"][mountSpellID] = true
-                    -- update the testing variable to a flying mount id that the player owns
-                    flightTest = mountSpellID
+                    self.db.char.mounts["flying"][spellID] = true
                 end
                 if water then
                     self.db.char.mounts["water"] = self.db.char.mounts["water"] or {}
-                    self.db.char.mounts["water"][mountSpellID] = true
+                    self.db.char.mounts["water"][spellID] = true
                 end
             end
         end
@@ -419,9 +394,23 @@ function MountManager:ScanForNewMounts()
 		self:UpdateMountChecks()
     end
 end
-function MountManager:MountExists(mountSpellID)
+function MountManager:ScanForRaceClass()
+	if self.db.char.race == "Worgen" and self.db.char.mount_skill > 0 then
+		self.db.char.mounts["ground"][worgenRacial] = true;
+	end
+	if self.db.char.class == "Druid" then
+		self:UPDATE_SHAPESHIFT_FORMS()
+	end
+	if self.db.char.class == "Monk" then
+		self.db.char.mounts["flying"][zenFlight] = IsSpellKnown(zenFlight);
+	end
+	if self.db.char.class == "Shaman" and self.db.char.level > 14 then
+		self.db.char.mounts["skill"][ghostWolf] = true;
+	end
+end
+function MountManager:MountExists(spellID)
     for mountType, typeTable in pairs(self.db.char.mounts) do
-        if typeTable[mountSpellID] ~= nil then
+        if typeTable[spellID] ~= nil then
             return true
         end
     end
@@ -556,7 +545,7 @@ end
 -- Macro Setup
 ------------------------------------------------------------------
 function MountManager:GenerateMacro()
-    if InCombatLockdown() or state.inCombat then return end
+    if InCombatLockdown() or state.inCombat or state.inPetBattle then return end
     
     -- Create base macro for mount selection
     local index = GetMacroIndexByName("MountManager")
@@ -586,8 +575,9 @@ function MountManager:GetRandomMount()
 	
 	-- Determine state order for looking for a mount
     local typeList = {}
+	local keyDown = IsModifierKeyDown()
 	if vashj[state.zone] then -- in Vashj'ir
-		if state.isFlyable == 1 and not IsModifierKeyDown() then
+		if state.isFlyable == 1 and not keyDown then
 			typeList = { "flying", "vashj", "water", "ground" }
 		elseif state.isSwimming == 1 then
 			typeList = { "vashj", "water", "ground" }
@@ -595,7 +585,7 @@ function MountManager:GetRandomMount()
 			typeList = { "ground" }
 		end
 	elseif state.zone == 766 then -- in AQ
-		if IsModifierKeyDown() then
+		if keyDown then
 			typeList = { "ground" }
 		elseif state.isSwimming == 1 then
 			typeList = { "water", "aq", "ground" }
@@ -603,12 +593,12 @@ function MountManager:GetRandomMount()
 			typeList = { "aq", "ground" }
 		end
 	elseif state.isSwimming == 1 then
-		if state.isFlyable == 1 and not IsModifierKeyDown() then
+		if state.isFlyable == 1 and not keyDown then
 			typeList = { "flying", "water", "ground" }
 		else
 			typeList = { "water", "ground" }
 		end
-	elseif state.isFlyable == 1 and not IsModifierKeyDown() then
+	elseif state.isFlyable == 1 and not keyDown then
 		typeList = { "flying", "ground" }
 	else
 		typeList = { "ground" }
