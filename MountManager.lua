@@ -208,9 +208,9 @@ function MountManager:OnEnable()
         self:RegisterEvent("UPDATE_SHAPESHIFT_FORMS")
         self:UPDATE_SHAPESHIFT_FORMS()
     end
-	if self.db.char.class == "Monk" then
-		self.db.char.mounts["air"][zenFlight] = IsSpellKnown(zenFlight);
-	end
+	--if self.db.char.class == "Monk" then
+	--	self.db.char.mounts["flying"][zenFlight] = IsSpellKnown(zenFlight);
+	--end
     if self.db.char.class == "Shaman" and self.db.char.level > 14 then
         self.db.char.mounts["skill"][ghostWolf] = true;
     end
@@ -264,9 +264,9 @@ function MountManager:ChatCommand(input)
         if self.db.char.class == "Druid" then
             self:UPDATE_SHAPESHIFT_FORMS()
         end
-		if self.db.char.class == "Monk" then
-			self.db.char.mounts["air"][zenFlight] = IsSpellKnown(zenFlight);
-		end
+		--if self.db.char.class == "Monk" then
+		--	self.db.char.mounts["flying"][zenFlight] = IsSpellKnown(zenFlight);
+		--end
 		if self.db.char.class == "Shaman" and self.db.char.level > 14 then
 			self.db.char.mounts["skill"][ghostWolf] = true;
 		end
@@ -337,9 +337,9 @@ function MountManager:LEARNED_SPELL_IN_TAB()
 		self.db.char.serpent = true
 	end
 	
-	if self.db.char.class == "Monk" then
-		self.db.char.mounts["air"][zenFlight] = IsSpellKnown(zenFlight);
-	end
+	--if self.db.char.class == "Monk" then
+	--	self.db.char.mounts["flying"][zenFlight] = IsSpellKnown(zenFlight);
+	--end
 end
 
 function MountManager:COMPANION_LEARNED()
