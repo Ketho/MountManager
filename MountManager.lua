@@ -332,6 +332,11 @@ end
 -- Mount Methods
 ------------------------------------------------------------------
 function MountManager:ScanForNewMounts()
+	-- make sure that LibMounts is loaded before pulling information from it
+	if not M.initialized then
+		M:COMPANION_LEARNED()
+	end
+
     local newMounts = 0
     for id = 1,GetNumCompanions("MOUNT") do
         local _, _, spellID, _, _, mountFlags = GetCompanionInfo("MOUNT", id)
