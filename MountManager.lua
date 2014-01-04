@@ -161,9 +161,6 @@ function MountManager:OnInitialize()
 end
 
 function MountManager:OnEnable()
-	-- Add missing mount data (need to replace Lib with more reliable implementation)
-	self:AddMissingData()
-
     -- Setup current character values
     self.db.char.level = UnitLevel("player")
     self.db.char.race = select(2, UnitRace("player"))
@@ -216,25 +213,6 @@ function MountManager:OnEnable()
     self:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
 	
     self:RegisterEvent("ADDON_LOADED")
-end
-
-function MountManager:AddMissingData()
-	M.data["ground"][130138] = true --Black Riding Goat
-	M.data["ground"][130086] = true --Brown Riding Goat
-	M.data["ground"][130137] = true --White Riding Goat
-	
-	M.data["air"][136163] = true 	--Grand Gryphon
-	M.data["ground"][136163] = true --Grand Gryphon
-	M.data["air"][135416] = true 	--Grand Armored Gryphon
-	M.data["ground"][135416] = true --Grand Armored Gryphon
-	M.data["air"][136164] = true 	--Grand Wyvern
-	M.data["ground"][136164] = true --Grand Wyvern
-	M.data["air"][135418] = true 	--Grand Armored Wyvern
-	M.data["ground"][135418] = true --Grand Armored Wyvern
-	
-	M.data["air"][133023] = true 	--Jade Pandaren Kite
-	M.data["air"][134573] = true 	--Swift Windsteed
-	M.data["ground"][134573] = true --Swift Windsteed
 end
 
 ------------------------------------------------------------------
