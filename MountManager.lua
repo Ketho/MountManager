@@ -1,6 +1,5 @@
 ﻿MountManager = LibStub("AceAddon-3.0"):NewAddon("MountManager", "AceConsole-3.0", "AceEvent-3.0")
 local L = LibStub("AceLocale-3.0"):GetLocale("MountManager")
-local M = LibStub("LibMounts-1.0")
 
 ------------------------------------------------------------------
 -- Local Settings
@@ -63,6 +62,7 @@ local defaults = {
         level = level,
         race = race,
         class = class,
+		faction = faction,
 		prof = {},
         mount_skill = 0,
 		serpent = false,
@@ -165,6 +165,7 @@ function MountManager:OnEnable()
     self.db.char.level = UnitLevel("player")
     self.db.char.race = select(2, UnitRace("player"))
     self.db.char.class = UnitClass("player")
+    self.db.char.faction = UnitFactionGroup("player")
 	local prof1, prof2 = GetProfessions()
 	if prof1 ~= nil then
 		local name1, _, rank1 = GetProfessionInfo(prof1)
@@ -264,10 +265,10 @@ function MountManager:UpdateZoneStatus(event)
     state.isSwimming = IsSwimming() or IsSubmerged()
     
 	local usable, _ = IsUsableSpell(flightTest)
-    if IsFlyableArea() and self.db.char.mount_skill > 2 and usable == 1 then
-        state.isFlyable = 1
+    if IsFlyableArea() and self.db.char.mount_skill > 2 and usable == true then
+        state.isFlyable = true
     else
-        state.isFlyable = 0
+        state.isFlyable = false
     end
     
     if (prevSwimming ~= state.isSwimming) or (prevFlyable ~= state.isFlyable) then
@@ -332,43 +333,45 @@ end
 -- Mount Methods
 ------------------------------------------------------------------
 function MountManager:ScanForNewMounts()
-	-- make sure that LibMounts is loaded before pulling information from it
-	if not M.initialized then
-		M:COMPANION_LEARNED()
-	end
-
     local newMounts = 0
-    for id = 1,GetNumCompanions("MOUNT") do
-        local _, _, spellID, _, _, mountFlags = GetCompanionInfo("MOUNT", id)
-        --make sure its not already found
-        if not self:MountExists(spellID) then
+	for index = 1,C_MountJournal.GetNumMounts() do
+		local _, spellID, _, _, _, _, _, isFactionSpecific, faction, _, isCollected = C_MountJournal.GetMountInfo(index)
+        --make sure its valid and not already found
+		local correctFaction = not isFactionSpecific or (self.db.char.faction == "Horde" and faction == 0) or (self.db.char.faction == "Alliance" and faction == 1)
+		if correctFaction == true and isCollected == true and not self:MountExists(spellID) then
             newMounts = newMounts + 1
-
-            local ground, air, water, speed, location = M:GetMountInfo(spellID)
-
-            if location then
-                if location == "Temple of Ahn'Qiraj" then
-                    self.db.char.mounts["aq"] = self.db.char.mounts["aq"] or {}
-                    self.db.char.mounts["aq"][spellID] = true
-                end
-                if location == "Vashj'ir" then
-                    self.db.char.mounts["vashj"] = self.db.char.mounts["vashj"] or {}
-                    self.db.char.mounts["vashj"][spellID] = true
-                end
-            else
-                if ground then
-                    self.db.char.mounts["ground"] = self.db.char.mounts["ground"] or {}
-                    self.db.char.mounts["ground"][spellID] = true
-                end
-                if air then
-                    self.db.char.mounts["flying"] = self.db.char.mounts["flying"] or {}
-                    self.db.char.mounts["flying"][spellID] = true
-                end
-                if water then
-                    self.db.char.mounts["water"] = self.db.char.mounts["water"] or {}
-                    self.db.char.mounts["water"][spellID] = true
-                end
-            end
+			
+			local _, _, _, _, mountType = C_MountJournal.GetMountInfoExtra(index)
+			
+			-- 269 for 2 Water Striders (Azure and Crimson)
+			-- 254 for 1 Subdued Seahorse (Vashj'ir and water)
+			-- 248 for 163 "typical" flying mounts, including those that change based on level
+			-- 247 for 1 Red Flying Cloud (flying mount)
+			-- 242 for 1 Swift Spectral Gryphon (the one we fly while dead)
+			-- 241 for 4 Qiraji Battle Tanks (AQ only)
+			-- 232 for 1 Abyssal Seahorse (Vashj'ir only)
+			-- 231 for 2 Turtles (Riding and Sea)
+			-- 230 for 298 land mounts
+			if mountType == 241 then
+				self.db.char.mounts["aq"] = self.db.char.mounts["aq"] or {}
+				self.db.char.mounts["aq"][spellID] = true
+			end
+			if mountType == 232 or mountType == 254 then
+				self.db.char.mounts["vashj"] = self.db.char.mounts["vashj"] or {}
+				self.db.char.mounts["vashj"][spellID] = true
+			end
+			if mountType == 247 or mountType == 248 then
+				self.db.char.mounts["flying"] = self.db.char.mounts["flying"] or {}
+				self.db.char.mounts["flying"][spellID] = true
+			end
+			if mountType == 231 or mountType == 254 or mountType == 269 then
+				self.db.char.mounts["water"] = self.db.char.mounts["water"] or {}
+				self.db.char.mounts["water"][spellID] = true
+			end
+			if mountType == 230 or mountType == 231 or mountType == 269 then
+				self.db.char.mounts["ground"] = self.db.char.mounts["ground"] or {}
+				self.db.char.mounts["ground"][spellID] = true
+			end
         end
     end
     
@@ -400,10 +403,10 @@ function MountManager:MountExists(spellID)
     return false
 end
 function MountManager:SummonMount(mount)
-    for id = 1,GetNumCompanions("MOUNT") do
-        local spellID = select(3, GetCompanionInfo("MOUNT", id))
+	for index = 1,C_MountJournal.GetNumMounts() do
+		local spellID = select(2, C_MountJournal.GetMountInfo(index))
         if spellID == mount then
-            CallCompanion("MOUNT", id)
+			C_MountJournal.Summon(index)
         end
     end
 end
@@ -414,12 +417,7 @@ end
 function MountManager:HijackMountFrame()
     self.companionButtons = {}
 
-	-- verify there are mounts to track
-	local numMounts = GetNumCompanions("MOUNT")
-	if numMounts < 1 then
-		return
-	end
-
+	local numMounts = C_MountJournal.GetNumMounts()
 	local scrollFrame = MountJournal.ListScrollFrame
 	local buttons = scrollFrame.buttons
 
@@ -446,23 +444,29 @@ function MountManager:HijackMountFrame()
 		MountManager:UpdateMountChecks()
 	end)
 	
-	-- hook up events to update check state on search
-	MountJournal.searchBox:HookScript("OnTextChanged", function(self)
+	---- hook up events to update check state on search or filter change
+	hooksecurefunc("MountJournal_UpdateMountList", function(self)
 		MountManager:UpdateMountChecks()
-	end)
+	end);
 
 	-- force an initial update on the journal, as it's coded to only do it upon scroll or selection
 	MountJournal_UpdateMountList()
-	self:UpdateMountChecks()
 end
 
 function MountManager:UpdateMountChecks()
     if self.companionButtons then
+		local offset = HybridScrollFrame_GetOffset(MountJournal.ListScrollFrame);
+	
 		for idx, button in ipairs(self.companionButtons) do
 			local parent = button:GetParent()
-			if parent:IsEnabled() == 1 then
-				-- Get information about the currently selected mount
-				local spellID = parent.spellID
+			
+			-- Get information about the currently selected mount
+			local spellID = parent.spellID
+			local index = self:FindSelectedIndex(spellID)
+			local _, _, _, _, _, _, _, isFactionSpecific, faction, _, isCollected = C_MountJournal.GetMountInfo(index)
+			local correctFaction = (not isFactionSpecific or (self.db.char.faction == "Horde" and faction == 0) or (self.db.char.faction == "Alliance" and faction == 1))
+			
+			if correctFaction == true and isCollected == true and parent:IsEnabled() == true then
 					
 				-- Set the checked state based on the currently saved value
 				local checked = false;
@@ -474,9 +478,11 @@ function MountManager:UpdateMountChecks()
 
 				button:SetEnabled(true)
 				button:SetChecked(checked)
+				button:SetAlpha(1.0);
 			else
 				button:SetEnabled(false)
 				button:SetChecked(false)
+				button:SetAlpha(0.25);
 			end
 		end
 	end
@@ -495,6 +501,16 @@ function MountManager:MountCheckButton_OnClick(button)
             end
         end
     end
+end
+function MountManager:FindSelectedIndex(selectedSpellID)
+	for i=1, C_MountJournal.GetNumMounts() do
+		local _, spellID = MountJournal_GetMountInfo(i);
+		if spellID == selectedSpellID then
+			return i;
+		end
+	end
+
+	return nil;
 end
 
 function MountManager:MountManagerButton_OnClick(button)
@@ -560,28 +576,28 @@ function MountManager:GetRandomMount()
     local typeList = {}
 	local keyDown = IsModifierKeyDown()
 	if vashj[state.zone] then -- in Vashj'ir
-		if state.isFlyable == 1 and not keyDown then
-			typeList = { "flying", "vashj", "water", "ground" }
-		elseif state.isSwimming == 1 then
+		if state.isSwimming == true and not keyDown then
 			typeList = { "vashj", "water", "ground" }
+		elseif state.isFlyable == true then
+			typeList = { "flying", "vashj", "water", "ground" }
 		else
 			typeList = { "ground" }
 		end
 	elseif state.zone == 766 then -- in AQ
 		if keyDown then
 			typeList = { "ground" }
-		elseif state.isSwimming == 1 then
+		elseif state.isSwimming == true then
 			typeList = { "water", "aq", "ground" }
 		else
 			typeList = { "aq", "ground" }
 		end
-	elseif state.isSwimming == 1 then
-		if state.isFlyable == 1 and not keyDown then
+	elseif state.isSwimming == true then
+		if state.isFlyable == true and not keyDown then
 			typeList = { "flying", "water", "ground" }
 		else
 			typeList = { "water", "ground" }
 		end
-	elseif state.isFlyable == 1 and not keyDown then
+	elseif state.isFlyable == true and not keyDown then
 		typeList = { "flying", "ground" }
 	else
 		typeList = { "ground" }
@@ -617,7 +633,16 @@ function MountManager:GetRandomMount()
 end
 
 -- Profession restricted mounts
-local profMounts = M.data["professionRestricted"]
+local TAILORING_ID = 110426
+local ENGINEERING_ID = 110403
+local profMounts =  {
+	[61451] = { TAILORING_ID, 300 }, --Flying Carpet
+	[61309] = { TAILORING_ID, 425 }, --Magnificent Flying Carpet
+	[75596] = { TAILORING_ID, 425 }, --Frosty Flying Carpet
+	
+	[44153] = { ENGINEERING_ID, 300 }, --Flying Machine
+	[44151] = { ENGINEERING_ID, 375 }, --Turbo-Charged Flying Machine
+}
 function MountManager:CheckProfession(spell)
 	if profMounts[spell] then
 		local skill = GetSpellInfo(profMounts[spell][1])

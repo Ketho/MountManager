@@ -1,12 +1,16 @@
-## Interface: 50400
+## Interface: 60000
 ## Title: MountManager
 ## Notes: Interface-central mount management
-## Author: @project-author@
-## Version: @project-version@
+## Author: dragoron
+## Version: v1.0.0
 ## SavedVariables: MountManagerDB
-## OptionalDeps: Ace3, LibBabble-Zone-3.0, LibMounts-1.0
-## X-Embeds: Ace3, LibBabble-Zone-3.0, LibMounts-1.0
+## OptionalDeps: Ace3
+## X-Embeds: Ace3
 ## X-Category: Companions
+## X-Curse-Packaged-Version: v1.0.0
+## X-Curse-Project-Name: MountManager
+## X-Curse-Project-ID: mountmanager
+## X-Curse-Repository-ID: wow/mountmanager/mainline
 
 #@no-lib-strip@
 embeds.xml
