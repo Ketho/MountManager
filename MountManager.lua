@@ -289,9 +289,9 @@ function MountManager:LEARNED_SPELL_IN_TAB()
         self.db.char.mount_skill = 1
     end
 	
-	if IsSpellKnown(130487) then -- Cloud Serpent Riding
+	--if IsSpellKnown(130487) then -- Cloud Serpent Riding
 		self.db.char.serpent = true
-	end
+	--end
 	
 	--[[if self.db.char.class == "Monk" then
 		self.db.char.mounts["flying"][zenFlight] = IsSpellKnown(zenFlight);
@@ -334,15 +334,16 @@ end
 ------------------------------------------------------------------
 function MountManager:ScanForNewMounts()
     local newMounts = 0
-	for index = 1,C_MountJournal.GetNumMounts() do
-		local _, spellID, _, _, _, _, _, isFactionSpecific, faction, _, isCollected = C_MountJournal.GetMountInfo(index)
+	for _, id in pairs(C_MountJournal.GetMountIDs()) do
+		local name, spellID, _, _, _, _, _, isFactionSpecific, faction, _, isCollected = C_MountJournal.GetMountInfoByID(id)
         --make sure its valid and not already found
 		local correctFaction = not isFactionSpecific or (self.db.char.faction == "Horde" and faction == 0) or (self.db.char.faction == "Alliance" and faction == 1)
 		if correctFaction == true and isCollected == true and not self:MountExists(spellID) then
             newMounts = newMounts + 1
 			
-			local _, _, _, _, mountType = C_MountJournal.GetMountInfoExtra(index)
+			local _, _, _, _, mountType = C_MountJournal.GetMountInfoExtraByID(id)
 			
+			-- 284 for 2 Chopper / Mechano-Hog
 			-- 269 for 2 Water Striders (Azure and Crimson)
 			-- 254 for 1 Subdued Seahorse (Vashj'ir and water)
 			-- 248 for 163 "typical" flying mounts, including those that change based on level
@@ -368,7 +369,7 @@ function MountManager:ScanForNewMounts()
 				self.db.char.mounts["water"] = self.db.char.mounts["water"] or {}
 				self.db.char.mounts["water"][spellID] = true
 			end
-			if mountType == 230 or mountType == 231 or mountType == 269 then
+			if mountType == 230 or mountType == 231 or mountType == 269 or mountType == 284 then
 				self.db.char.mounts["ground"] = self.db.char.mounts["ground"] or {}
 				self.db.char.mounts["ground"][spellID] = true
 			end
@@ -403,10 +404,11 @@ function MountManager:MountExists(spellID)
     return false
 end
 function MountManager:SummonMount(mount)
-	for index = 1,C_MountJournal.GetNumMounts() do
-		local spellID = select(2, C_MountJournal.GetMountInfo(index))
+	for _, id in pairs(C_MountJournal.GetMountIDs()) do
+		local _, spellID = C_MountJournal.GetMountInfoByID(id)
         if spellID == mount then
-			C_MountJournal.Summon(index)
+			C_MountJournal.SummonByID(id)
+			return
         end
     end
 end
@@ -462,8 +464,8 @@ function MountManager:UpdateMountChecks()
 			
 			-- Get information about the currently selected mount
 			local spellID = parent.spellID
-			local index = self:FindSelectedIndex(spellID)
-			local _, _, _, _, _, _, _, isFactionSpecific, faction, _, isCollected = C_MountJournal.GetMountInfo(index)
+			local id = self:FindSelectedID(spellID)
+			local _, _, _, _, _, _, _, isFactionSpecific, faction, _, isCollected = C_MountJournal.GetMountInfoByID(id)
 			local correctFaction = (not isFactionSpecific or (self.db.char.faction == "Horde" and faction == 0) or (self.db.char.faction == "Alliance" and faction == 1))
 			
 			if correctFaction == true and isCollected == true and parent:IsEnabled() == true then
@@ -502,11 +504,11 @@ function MountManager:MountCheckButton_OnClick(button)
         end
     end
 end
-function MountManager:FindSelectedIndex(selectedSpellID)
-	for i=1, C_MountJournal.GetNumMounts() do
-		local _, spellID = MountJournal_GetMountInfo(i);
+function MountManager:FindSelectedID(selectedSpellID)
+	for _, id in pairs(C_MountJournal.GetMountIDs()) do
+		local _, spellID = MountJournal_GetMountInfoByID(id);
 		if spellID == selectedSpellID then
-			return i;
+			return id;
 		end
 	end
 
@@ -555,7 +557,7 @@ function MountManager:GenerateMacro()
     state.mount = self:GetRandomMount()
 	if state.mount ~= nil then
 		local name, rank, icon = GetSpellInfo(state.mount)
-		icon = string.sub(icon, 17)
+		--icon = string.sub(icon, 17)
 		
 		if self.db.profile.showInChat then
 			self:Print(string.format("%s |cff20ff20%s|r", L["The next selected mount is"], name))
