@@ -107,6 +107,11 @@ local vashj = {
 	[615] = true, -- Shimmering Expanse
 	[614] = true  -- Abyssal Depths
 }
+-- Chauffeured
+local chauffeured = {
+	[678] = 179244, -- Chauffeured Mechano-Hog
+	[679] = 179245, -- Chauffeured Mekgineer's Chopper
+}
 local SetMapToCurrentZone = SetMapToCurrentZone;
 
 ------------------------------------------------------------------
@@ -554,8 +559,14 @@ function MountManager:GenerateMacro()
         index = CreateMacro("MountManager", 1, "", 1, nil)
     end
     
-    state.mount = self:GetRandomMount()
-	if state.mount ~= nil then
+	if self.db.char.level < 20 then
+		local id = (self.db.char.faction == "Horde") and 678 or 679
+		state.mount = select(5, C_MountJournal.GetMountInfoByID(id)) and chauffeured[id]
+	else
+		state.mount = self:GetRandomMount()
+	end
+	
+	if state.mount then
 		local name, rank, icon = GetSpellInfo(state.mount)
 		--icon = string.sub(icon, 17)
 		
