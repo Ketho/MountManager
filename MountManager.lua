@@ -66,6 +66,7 @@ local defaults = {
 		prof = {},
         mount_skill = 0,
 		serpent = false,
+		classmounts = true,
         mounts = {
 			skill = {},
             ground = {},
@@ -170,6 +171,7 @@ function MountManager:OnEnable()
     self.db.char.level = UnitLevel("player")
     self.db.char.race = select(2, UnitRace("player"))
     self.db.char.class = UnitClass("player")
+    self.db.char.class2 = select(2, UnitClass("player"))
     self.db.char.faction = UnitFactionGroup("player")
 	local prof1, prof2 = GetProfessions()
 	if prof1 ~= nil then
@@ -621,7 +623,7 @@ function MountManager:GetRandomMount()
 		-- Make a sublist of any valid mounts of the selected type
 		local mounts = {}
 		for mount, active in pairs(self.db.char.mounts[type]) do
-			if self.db.char.mounts[type][mount] == true and self:CheckProfession(mount) and self:CheckSerpent(mount) then
+			if self.db.char.mounts[type][mount] == true and self:CheckProfession(mount) and self:CheckSerpent(mount) and self:CheckClass(mount) then
 				mounts[#mounts + 1] = mount
 			end
 		end
@@ -691,6 +693,42 @@ local serpents = {
 function MountManager:CheckSerpent(spell)
 	if serpents[spell] then
 		return self.db.char.serpent
+	end
+	return true
+end
+
+-- Class Mounts
+local classmounts =  {	
+	[229387] = "DEATHKNIGHT", --Deathlord's Vilebrood Vanquisher
+	[229417] = "DEMONHUNTER", --Slayer's Felbroken Shrieker
+	[229386] = "HUNTER", --Huntmaster's Loyal Wolfhawk
+	[229438] = "HUNTER", --Huntmaster's Fierce Wolfhawk
+	[229439] = "HUNTER", --Huntmaster's Dire Wolfhawk
+	[229376] = "MAGE", --Archmage's Prismatic Disc
+	[229385] = "MONK", --Ban-Lu, Grandmaster's Companion
+	[231435] = "PALADIN", --Highlord's Golden Charger
+	[231589] = "PALADIN", --Highlord's Valorous Charge
+	[231588] = "PALADIN", --Highlord's Vigilant Charger
+	[231587] = "PALADIN", --Highlord's Vengeful Charger
+	[229377] = "PRIEST", --High Priest's Lightsworn Seeker
+	[231434] = "ROGUE", --Shadowblade's Murderous Omen
+	[231523] = "ROGUE", --Shadowblade's Lethal Omen
+	[231524] = "ROGUE", --Shadowblade's Baneful Omen
+	[231525] = "ROGUE", --Shadowblade's Crimson Omen
+	[231442] = "SHAMAN", --Farseer's Raging Tempest
+	[238452] = "WARLOCK", --Netherlord's Brimstone Wrathsteed
+	[238454] = "WARLOCK", --Netherlord's Accursed Wrathsteed
+	[232412] = "WARLOCK", --Netherlord's Chaotic Wrathsteed
+	[229388] = "WARRIOR", --Battlelord's Bloodthirsty War Wyrm
+}
+
+function MountManager:CheckClass(spell)
+	if classmounts[spell] then
+		if classmounts[spell] == self.db.char.class2 then
+			return self.db.char.classmounts
+		else
+			return false
+		end
 	end
 	return true
 end
